@@ -49,13 +49,18 @@ with aba_mercado:
     lista_tabela = []
     
     for nome, ticker in ativos.items():
-        dados_diarios = yf.download(tickers=ticker, period='2d', interval='1d', progress=False)
+        dados_diarios = yf.download(tickers=ticker, period='3d', interval='1d', progress=False)
         dados_intra = yf.download(tickers=ticker, period='6d', interval=tempo_grafico, progress=False)
         
         if not dados_diarios.empty and len(dados_diarios) >= 2 and not dados_intra.empty and len(dados_intra) >= 201:
-            maxima_ant = float(dados_diarios['High'].iloc[-2])
-            minima_ant = float(dados_diarios['Low'].iloc[-2])
-            fechamento_ant = float(dados_diarios['Close'].iloc[-2])
+            # Correção Robusta: Garante extração unidimensional limpa dos dados diários antecipando tabelas multi-index
+            high_raw = dados_diarios['High'].to_numpy().flatten()
+            low_raw = dados_diarios['Low'].to_numpy().flatten()
+            close_raw = dados_diarios['Close'].to_numpy().flatten()
+            
+            maxima_ant = float(high_raw[-2])
+            minima_ant = float(low_raw[-2])
+            fechamento_ant = float(close_raw[-2])
             
             # Cálculo Matemático Clássico dos Pontos de Pivô
             P = (maxima_ant + minima_ant + fechamento_ant) / 3
@@ -64,19 +69,19 @@ with aba_mercado:
             R2 = P + (maxima_ant - minima_ant)
             S2 = P - (maxima_ant - minima_ant)
             
-            fechamentos = dados_intra['Close'].to_numpy().flatten()
-            maximas = dados_intra['High'].to_numpy().flatten()
-            minimas = dados_intra['Low'].to_numpy().flatten()
+            fechamentos_intra = dados_intra['Close'].to_numpy().flatten()
+            maximas_intra = dados_intra['High'].to_numpy().flatten()
+            minimas_intra = dados_intra['Low'].to_numpy().flatten()
             
-            ultimo_fechamento = float(fechamentos[-1])
-            ma9 = float(pd.Series(fechamentos).rolling(window=9).mean().iloc[-1])
-            ma21 = float(pd.Series(fechamentos).rolling(window=21).mean().iloc[-1])
-            ma200 = float(pd.Series(fechamentos).rolling(window=200).mean().iloc[-1])
+            ultimo_fechamento = float(fechamentos_intra[-1])
+            ma9 = float(pd.Series(fechamentos_intra).rolling(window=9).mean().iloc[-1])
+            ma21 = float(pd.Series(fechamentos_intra).rolling(window=21).mean().iloc[-1])
+            ma200 = float(pd.Series(fechamentos_intra).rolling(window=200).mean().iloc[-1])
             ifr = calcular_ifr(dados_intra, 14)
             
             folga_tecnica = ultimo_fechamento * 0.0015
-            stop_venda_tecnico = float(np.max(maximas[-janela_stop:]))
-            stop_compra_tecnico = float(np.min(minimas[-janela_stop:]))
+            stop_venda_tecnico = float(np.max(maximas_intra[-janela_stop:]))
+            stop_compra_tecnico = float(np.min(minimas_intra[-janela_stop:]))
             
             if stop_venda_tecnico <= ultimo_fechamento: stop_venda_tecnico = ultimo_fechamento + folga_tecnica
             if stop_compra_tecnico >= ultimo_fechamento: stop_compra_tecnico = ultimo_fechamento - folga_tecnica
@@ -135,5 +140,4 @@ with aba_mercado:
     else:
         st.warning("Aguardando carregamento de dados...")
 
-    
 
